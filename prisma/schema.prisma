@@ -1,0 +1,103 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum FoundStatus {
+  FOUND
+  MISSING
+}
+
+model Audit {
+  id        String   @id @default(cuid())
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items      AuditItem[]
+  scanEvents ScanEvent[]
+}
+
+model AuditItem {
+  id      String @id @default(cuid())
+  auditId String
+  audit   Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  // Imported / entered fields (from your Excel):
+  item        String?
+  description String?
+  prefVendor  String?
+
+  onHand        Float?
+  physicalCount Float?
+  countVariance Float?
+
+  expectedBin String?
+  serialsRaw   String?
+  assetId      String?
+  notes        String?
+
+  currentOnHandValue   Float?
+  currentValueVariance Float?
+
+  // Tracking:
+  found        Boolean     @default(false)
+  foundStatus  FoundStatus?
+  foundAt      DateTime?
+  foundBin     String?
+  reviewFlag   Boolean     @default(false)
+  reviewReason String?
+
+  // Serial tracking:
+  serials ItemSerial[]
+
+  // Trail link (optional)
+  scanEvents ScanEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([auditId])
+  @@index([assetId])
+}
+
+model ItemSerial {
+  id          String   @id @default(cuid())
+  auditItemId String
+  auditItem   AuditItem @relation(fields: [auditItemId], references: [id], onDelete: Cascade)
+
+  sn      String
+  found   Boolean  @default(false)
+  foundAt DateTime?
+
+  @@unique([auditItemId, sn])
+  @@index([sn])
+}
+
+model ScanEvent {
+  id        String   @id @default(cuid())
+  auditId   String
+  audit     Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  auditItemId String?
+  auditItem   AuditItem? @relation(fields: [auditItemId], references: [id], onDelete: SetNull)
+
+  token  String
+  type   String // "SERIAL" | "ASSET_ID"
+  status String // "FOUND" | "ALREADY_FOUND" | "NOT_FOUND"
+
+  currentBin  String?
+  expectedBin String?
+  foundBin    String?
+
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([auditId, createdAt])
+  @@index([auditItemId])
+}
